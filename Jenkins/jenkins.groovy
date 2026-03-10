@@ -154,14 +154,9 @@ pipeline {
     post {
         success {
             echo '✅ Pipeline completed successfully!'
-            echo "🐳 Image pushed: ${DOCKER_IMAGE}:${IMAGE_TAG}"
         }
         failure {
             echo '❌ Pipeline failed — check logs above'
-        }
-        always {
-            sh 'docker logout || true'
-            sh 'docker rmi $DOCKER_IMAGE:$IMAGE_TAG || true'
         }
     }
 }
