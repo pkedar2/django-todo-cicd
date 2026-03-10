@@ -1,0 +1,64 @@
+services:
+  jenkins:
+    image: jenkins/jenkins:lts
+    container_name: jenkins
+    ports:
+      - "8080:8080"
+    volumes:
+      - jenkins_data:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - cicd-network
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: ngrok
+    command: http jenkins:8080
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    ports:
+      - "4040:4040"
+    depends_on:
+      - jenkins
+    networks:
+      - cicd-network
+
+  postgres:
+    image: postgres:13
+    container_name: sonar_db
+    environment:
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: sonar
+      POSTGRES_DB: sonarqube
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - cicd-network
+
+  sonarqube:
+    image: sonarqube:lts-community
+    container_name: sonarqube
+    depends_on:
+      - postgres
+    ports:
+      - "9000:9000"
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://postgres:5432/sonarqube
+      SONAR_JDBC_USERNAME: sonar
+      SONAR_JDBC_PASSWORD: sonar
+    networks:
+      - cicd-network
+
+  zap:
+    image: zaproxy/zap-stable
+    container_name: zap
+    networks:
+      - cicd-network
+
+volumes:
+  jenkins_data:
+  postgres_data:
+
+networks:
+  cicd-network:
+    driver: bridge
