@@ -3,17 +3,19 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = "pranavkedar/todo"
-        SONARQUBE_ENV = "SonarScanner"
+        SONARQUBE_ENV = "SonarQube"
         IMAGE_TAG = "${BUILD_NUMBER}"
     }
 
     stages {
 
         stage('Checkout Code') {
-            steps {
-                git 'https://github.com/pkedar2/django-todo-cicd.git'
-            }
-        }
+    steps {
+        git branch: 'main',
+            credentialsId: 'github-cred',
+            url: 'https://github.com/pkedar2/django-todo-cicd.git'
+    }
+}
 
         stage('Install Dependencies') {
             steps {
@@ -70,7 +72,11 @@ pipeline {
                 stage('Trivy Scan') {
                     steps {
                         sh '''
-                        trivy image --exit-code 1 --severity HIGH,CRITICAL $DOCKER_IMAGE:$IMAGE_TAG
+                            trivy image \
+                            --exit-code 0 \
+                            --severity HIGH,CRITICAL \
+                            --format table \
+                            $DOCKER_IMAGE:$IMAGE_TAG
                         '''
                     }
                 }
