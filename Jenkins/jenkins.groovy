@@ -37,16 +37,20 @@ pipeline {
         }
 
         stage('SonarQube Scan') {
-            steps {
-                withSonarQubeEnv("${SONARQUBE_ENV}") {
-                    sh '''
-                    sonar-scanner \
-                    -Dsonar.projectKey=django-todo \
-                    -Dsonar.sources=.
-                    '''
-                }
-            }
+    steps {
+        withSonarQubeEnv('SonarQube') {
+            sh '''
+                docker run --rm \
+                  -e SONAR_HOST_URL=$SONAR_HOST_URL \
+                  -e SONAR_TOKEN=$SONAR_TOKEN \
+                  -v $(pwd):/usr/src \
+                  sonarsource/sonar-scanner-cli \
+                  -Dsonar.projectKey=django-todo \
+                  -Dsonar.sources=.
+            '''
         }
+    }
+}
 
         stage('Build Docker Image') {
             steps {
