@@ -63,6 +63,7 @@ pipeline {
                                 -Dsonar.projectKey=${SONAR_PROJECT} \
                                 -Dsonar.projectName=${SONAR_PROJECT} \
                                 -Dsonar.sources=.
+                                -Dsonar.exclusions=**/owasp-reports/**,**/dependency-check-report.*,**/.scannerwork/**
                             """
                         }
                     }
