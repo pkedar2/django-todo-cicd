@@ -85,7 +85,6 @@ pipeline {
                 stage('Trivy Image Scan') {
                     steps {
                         sh """
-                            # ── Full scan — all severities, never fails pipeline ──
                             trivy image \
                                 --exit-code 0 \
                                 --severity LOW,MEDIUM,HIGH,CRITICAL \
@@ -102,7 +101,7 @@ pipeline {
                             echo "LOW      : \$(grep -c 'LOW'      trivy-report.txt || true)"
                             echo "=================================="
 
-                            # ── Block only on unacknowledged CRITICALs ──
+                            # Exit only on critical CVEs
                             trivy image \
                                 --exit-code 1 \
                                 --severity CRITICAL \
