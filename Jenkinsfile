@@ -33,7 +33,6 @@ pipeline {
                         --no-cache \
                         --build-arg BUILD_NUMBER=${BUILD_NUMBER} \
                         -t ${DOCKER_IMAGE}:${DOCKER_TAG} \
-                        -t ${DOCKER_IMAGE}:${DOCKER_TAG} \
                         .
                 """
             }
@@ -41,29 +40,20 @@ pipeline {
 
         stage('Security Scans') {
             parallel {
-
                 stage('OWASP Dependency Check') {
                     steps {
-                        script {
-                            try {
-                                dependencyCheck(
-                                    additionalArguments: '--scan ./ --format HTML --format XML --prettyPrint',
-                                    odcInstallation: 'OWASP-DC'
-                                )
-                            } catch (Exception e) {
-                                echo "OWASP scan failed: ${e.message} — continuing pipeline"
-                            }
-                        }
+                        dependencyCheck(
+                            additionalArguments: '''
+                                --scan ./ 
+                                --format XML 
+                                --failOnCVSS 7
+                            ''',
+                            odcInstallation: 'OWASP-DC'
+                        )
                     }
                     post {
                         always {
-                            script {
-                                try {
-                                    dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
-                                } catch (Exception e) {
-                                    echo "No OWASP report found — skipping publish"
-                                }
-                            }
+                            dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
                         }
                     }
                 }
@@ -101,7 +91,7 @@ pipeline {
                             echo "LOW      : \$(grep -c 'LOW'      trivy-report.txt || true)"
                             echo "=================================="
 
-                            # Exit only on critical CVEs
+                            # Fail only on CRITICAL
                             trivy image \
                                 --exit-code 1 \
                                 --severity CRITICAL \
@@ -116,7 +106,7 @@ pipeline {
                                              fingerprint: true
                         }
                         failure {
-                            echo "Unacknowledged CRITICAL CVEs found — fix or add to .trivyignore with justification"
+                            echo "CRITICAL CVEs found — fix or justify via .trivyignore"
                         }
                     }
                 }
@@ -157,7 +147,6 @@ pipeline {
             echo "Pipeline FAILED! Job: ${JOB_NAME} | Build: ${BUILD_NUMBER} | Logs: ${BUILD_URL}console"
         }
         always {
-            sh "docker rmi ${DOCKER_IMAGE}:${DOCKER_TAG} || true"
             sh "docker rmi ${DOCKER_IMAGE}:${DOCKER_TAG} || true"
             sh "docker image prune -f || true"
             cleanWs()
