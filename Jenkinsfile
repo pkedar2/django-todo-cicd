@@ -54,6 +54,8 @@ pipeline {
                     post {
                         always {
                             dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                            archiveArtifacts artifacts: '**/dependency-check-report.*',
+                                fingerprint: true
                         }
                     }
                 }
