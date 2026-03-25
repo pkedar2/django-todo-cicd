@@ -26,6 +26,19 @@ pipeline {
             }
         }
 
+        stage('Docker Build') {
+            steps {
+                sh """
+                    docker build \
+                        --no-cache \
+                        --build-arg BUILD_NUMBER=${BUILD_NUMBER} \
+                        -t ${DOCKER_IMAGE}:${DOCKER_TAG} \
+                        -t ${DOCKER_IMAGE}:${DOCKER_TAG} \
+                        .
+                """
+            }
+        }
+
         stage('Security Scans') {
             parallel {
 
@@ -69,6 +82,46 @@ pipeline {
                     }
                 }
 
+                stage('Trivy Image Scan') {
+                    steps {
+                        sh """
+                            # ── Full scan — all severities, never fails pipeline ──
+                            trivy image \
+                                --exit-code 0 \
+                                --severity LOW,MEDIUM,HIGH,CRITICAL \
+                                --ignorefile .trivyignore \
+                                --no-progress \
+                                --format table \
+                                --output trivy-report.txt \
+                                ${DOCKER_IMAGE}:${DOCKER_TAG}
+
+                            echo "========== CVE SUMMARY =========="
+                            echo "CRITICAL : \$(grep -c 'CRITICAL' trivy-report.txt || true)"
+                            echo "HIGH     : \$(grep -c 'HIGH'     trivy-report.txt || true)"
+                            echo "MEDIUM   : \$(grep -c 'MEDIUM'   trivy-report.txt || true)"
+                            echo "LOW      : \$(grep -c 'LOW'      trivy-report.txt || true)"
+                            echo "=================================="
+
+                            # ── Block only on unacknowledged CRITICALs ──
+                            trivy image \
+                                --exit-code 1 \
+                                --severity CRITICAL \
+                                --ignorefile .trivyignore \
+                                --no-progress \
+                                ${DOCKER_IMAGE}:${DOCKER_TAG}
+                        """
+                    }
+                    post {
+                        always {
+                            archiveArtifacts artifacts: 'trivy-report.txt',
+                                             fingerprint: true
+                        }
+                        failure {
+                            echo "Unacknowledged CRITICAL CVEs found — fix or add to .trivyignore with justification"
+                        }
+                    }
+                }
+
             }
         }
 
@@ -80,51 +133,16 @@ pipeline {
             }
         }
 
-        stage('Docker Build') {
-            steps {
-                sh """
-                    docker build \
-                        --no-cache \
-                        --build-arg BUILD_NUMBER=${BUILD_NUMBER} \
-                        -t ${DOCKER_IMAGE}:${DOCKER_TAG} \
-                        -t ${DOCKER_IMAGE}:latest \
-                        .
-                """
-            }
-        }
-
-       stage('Trivy Image Scan') {
-     steps {
-        sh """
-            trivy image \
-                --exit-code 0 \
-                --severity HIGH,CRITICAL \
-                --no-progress \
-                --format table \
-                --output trivy-report.txt \
-                ${DOCKER_IMAGE}:${DOCKER_TAG}
-        """
-    }
-    post {
-        always {
-            archiveArtifacts artifacts: 'trivy-report.txt',
-                             fingerprint: true
-            echo "Trivy scan complete — check trivy-report.txt for details"
-        }
-    }
-}
-
         stage('Push to DockerHub') {
             steps {
                 withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-creds',
+                    credentialsId: 'dockerhub-cred',
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
                     sh """
                         echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin
                         docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
-                        docker push ${DOCKER_IMAGE}:latest
                     """
                 }
             }
@@ -141,7 +159,7 @@ pipeline {
         }
         always {
             sh "docker rmi ${DOCKER_IMAGE}:${DOCKER_TAG} || true"
-            sh "docker rmi ${DOCKER_IMAGE}:latest || true"
+            sh "docker rmi ${DOCKER_IMAGE}:${DOCKER_TAG} || true"
             sh "docker image prune -f || true"
             cleanWs()
         }
